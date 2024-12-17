@@ -1,11 +1,9 @@
-use Mix.Config
+import Config
 
 config :recaptcha,
   verify_url: "https://www.google.com/recaptcha/api/siteverify",
   timeout: 5000,
-  public_key: {:system, "RECAPTCHA_PUBLIC_KEY"},
-  secret: {:system, "RECAPTCHA_PRIVATE_KEY"}
+  public_key: System.get_env("RECAPTCHA_PUBLIC_KEY"),
+  secret: System.get_env("RECAPTCHA_PRIVATE_KEY")
 
-config :recaptcha, :json_library, Jason
-
-import_config "#{Mix.env()}.exs"
+if config_env() == :test, do: import_config("test.exs")

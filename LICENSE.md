@@ -1,4 +1,5 @@
 Copyright (c) 2016 Samuel Seay
+Copyright (c) 2024 Altenwald
 
 MIT License
 

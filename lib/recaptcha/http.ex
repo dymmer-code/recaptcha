@@ -2,13 +2,26 @@ defmodule Recaptcha.Http do
   @moduledoc """
   Responsible for managing HTTP requests to the reCAPTCHA API.
   """
+  use Tesla, only: [:post], docs: false
 
-  alias Recaptcha.Config
+  require Logger
 
-  @headers [
+  plug(
+    Tesla.Middleware.BaseUrl,
+    Application.get_env(:recaptcha, :verify_url, @default_verify_url)
+  )
+
+  plug(Tesla.Middleware.Headers, [
     {"Content-type", "application/x-www-form-urlencoded"},
     {"Accept", "application/json"}
-  ]
+  ])
+
+  plug(Tesla.Middleware.DecodeJson)
+
+  plug(Tesla.Middleware.Logger,
+    format: "$method $url ===> $status / time=$time",
+    log_level: :debug
+  )
 
   @default_verify_url "https://www.google.com/recaptcha/api/siteverify"
 
@@ -36,25 +49,24 @@ defmodule Recaptcha.Http do
       })
 
   """
-  @spec request_verification(binary, Keyword.t) :: {:ok, map} | {:error, [atom]}
+  @spec request_verification(binary, Keyword.t()) ::
+          {:ok, map} | {:error, [atom]}
   def request_verification(body, options \\ []) do
-    timeout = options[:timeout] || Config.get_env(:recaptcha, :timeout, 5000)
-    url = Config.get_env(:recaptcha, :verify_url, @default_verify_url)
-    json = Application.get_env(:recaptcha, :json_library, Jason)
+    timeout =
+      options[:timeout] || Application.get_env(:recaptcha, :timeout, 5_000)
 
     opts = [{:timeout, timeout} | options]
-    result =
-      with {:ok, response} <-
-             HTTPoison.post(url, body, @headers, opts),
-           {:ok, data} <- json.decode(response.body) do
-        {:ok, data}
-      end
 
-    case result do
-      {:ok, data} -> {:ok, data}
-      {:error, :invalid} -> {:error, [:invalid_api_response]}
-      {:error, {:invalid, _reason}} -> {:error, [:invalid_api_response]}
-      {:error, %{reason: reason}} -> {:error, [reason]}
+    case post("", body, opts) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} when status >= 400 ->
+        Logger.error("captch error, body: #{inspect(body)}")
+        {:error, [:invalid_api_response]}
+
+      {:error, reason} ->
+        {:error, [reason]}
     end
   end
 end
